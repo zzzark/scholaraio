@@ -533,9 +533,17 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
             cleanup_assets = _pipeline_attr("_cleanup_assets", assets.cleanup_assets)
             repair_abstract(existing_json, existing_md, ctx.cfg)
             if ctx.pdf_path and ctx.pdf_path.exists():
-                from scholaraio.stores.papers import move_pdf_to_paper_dir
+                from scholaraio.stores.papers import find_pdf, move_pdf_to_paper_dir
 
-                move_pdf_to_paper_dir(ctx.pdf_path, existing_dir)
+                if find_pdf(existing_dir):
+                    move_to_pending(
+                        ctx,
+                        issue="duplicate",
+                        message="DOI duplicates an ingested paper that already has a PDF; review the incoming PDF manually",
+                        extra={"duplicate_of": existing_json.parent.name, "doi": doi_key},
+                    )
+                else:
+                    move_pdf_to_paper_dir(ctx.pdf_path, existing_dir)
             cleanup_inbox(ctx.pdf_path, None, dry_run=False)
             cleanup_assets(ctx.inbox_dir, pdf_stem, md_stem)
         else:
