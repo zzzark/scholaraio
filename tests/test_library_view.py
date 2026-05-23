@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 
 from scholaraio.core.config import _build_config
@@ -197,6 +199,60 @@ def test_main_library_view_reuses_audit_map_for_poll_and_detail(tmp_path: Path, 
     assert first["issue_totals"]["warning"] == 1
     assert second["issue_totals"]["warning"] == 1
     assert detail["issue_counts"]["warning"] == 1
+    assert calls["count"] == 1
+
+
+def test_main_library_audit_cache_is_thread_safe(tmp_path: Path, monkeypatch) -> None:
+    from scholaraio.services import library_view
+    from scholaraio.services.audit import Issue
+
+    papers_root = tmp_path / "data" / "libraries" / "papers"
+    _write_main_paper(
+        papers_root,
+        "Doe-2026-Concurrent",
+        paper_id="paper-concurrent",
+        title="Concurrent paper",
+    )
+    cfg = _build_config({}, tmp_path)
+    with library_view._AUDIT_CACHE_LOCK:
+        library_view._AUDIT_CACHE.clear()
+    calls = {"count": 0}
+    call_lock = threading.Lock()
+    first_started = threading.Event()
+    release_audit = threading.Event()
+
+    def fake_audit(papers_dir: Path):
+        with call_lock:
+            calls["count"] += 1
+        first_started.set()
+        assert papers_dir == papers_root
+        assert release_audit.wait(timeout=5)
+        return [Issue("Doe-2026-Concurrent", "warning", "sample", "Sample warning")]
+
+    monkeypatch.setattr(library_view, "audit_papers", fake_audit)
+    results: list[dict] = []
+    errors: list[BaseException] = []
+
+    def collect_view() -> None:
+        try:
+            results.append(library_view.build_main_library_view(cfg))
+        except BaseException as exc:  # pragma: no cover - preserves thread assertion context
+            errors.append(exc)
+
+    first = threading.Thread(target=collect_view)
+    second = threading.Thread(target=collect_view)
+    first.start()
+    assert first_started.wait(timeout=5)
+    second.start()
+    time.sleep(0.05)
+    release_audit.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert [view["issue_totals"]["warning"] for view in results] == [1, 1]
     assert calls["count"] == 1
 
 

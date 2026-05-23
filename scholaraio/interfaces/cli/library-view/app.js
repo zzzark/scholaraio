@@ -720,7 +720,7 @@ async function selectRow(paperId) {
       return;
     }
     setConnection("error", "Detail failed");
-    renderDetail({ title: "Detail unavailable", abstract: String(err), commands: {} });
+    renderDetail({ title: "Detail unavailable", abstract: String(err) });
   }
 }
 

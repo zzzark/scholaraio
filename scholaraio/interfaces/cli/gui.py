@@ -52,6 +52,15 @@ def _pdf_content_disposition(filename: str) -> str:
     return f"inline; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
+def _browser_url(host: str, port: int) -> str:
+    browser_host = (host or "127.0.0.1").strip() or "127.0.0.1"
+    if browser_host in {"0.0.0.0", "::", "[::]"}:
+        browser_host = "127.0.0.1"
+    elif ":" in browser_host and not browser_host.startswith("["):
+        browser_host = f"[{browser_host}]"
+    return f"http://{browser_host}:{port}"
+
+
 class LibraryViewRequestHandler(BaseHTTPRequestHandler):
     """Request handler configured by :func:`create_library_view_server`."""
 
@@ -235,9 +244,7 @@ def serve_library_view(
     """Run the local read-only WebUI until interrupted."""
 
     server = create_library_view_server(cfg, host=host, port=port)
-    actual_host = host or "127.0.0.1"
-    actual_port = server.server_port
-    url = f"http://{actual_host}:{actual_port}"
+    url = _browser_url(host, server.server_port)
     if open_browser:
         threading.Timer(0.2, lambda: webbrowser.open(url)).start()
     _ui(f"ScholarAIO library WebUI (read-only): {url}")

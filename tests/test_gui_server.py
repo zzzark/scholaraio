@@ -389,6 +389,101 @@ context.__ready.then((payload) => console.log(JSON.stringify(payload))).catch((e
     assert payload["detail"] is None
 
 
+def test_library_view_app_detail_failure_fallback_has_no_commands() -> None:
+    from scholaraio.interfaces.cli.gui import _static_dir
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is required for app.js behavior regression")
+    app_js = (_static_dir() / "app.js").as_posix()
+    script = f"""
+const fs = require("fs");
+const vm = require("vm");
+
+function element(id) {{
+  const classes = new Set();
+  return {{
+    id,
+    dataset: {{}},
+    value: "",
+    checked: false,
+    disabled: false,
+    hidden: false,
+    textContent: "",
+    innerHTML: "",
+    className: "",
+    children: [],
+    classList: {{
+      add(name) {{ classes.add(name); }},
+      remove(name) {{ classes.delete(name); }},
+      contains(name) {{ return classes.has(name); }},
+      toggle(name, force) {{
+        const enabled = force === undefined ? !classes.has(name) : Boolean(force);
+        if (enabled) classes.add(name);
+        else classes.delete(name);
+        return enabled;
+      }},
+    }},
+    appendChild(child) {{ this.children.push(child); return child; }},
+    append(...items) {{ this.children.push(...items); }},
+    removeAttribute(name) {{ delete this[name]; }},
+    addEventListener() {{}},
+  }};
+}}
+
+const elements = new Map();
+const tabs = ["main", "proceedings"].map((tab) => {{
+  const el = element(`tab-${{tab}}`);
+  el.dataset.tab = tab;
+  return el;
+}});
+const document = {{
+  body: element("body"),
+  getElementById(id) {{
+    if (!elements.has(id)) elements.set(id, element(id));
+    return elements.get(id);
+  }},
+  createElement(tag) {{
+    return element(tag);
+  }},
+  querySelectorAll(selector) {{
+    if (selector === ".tab") return tabs;
+    return [];
+  }},
+  addEventListener() {{}},
+}};
+const context = {{
+  document,
+  navigator: {{ clipboard: {{ writeText: async () => {{}} }} }},
+  fetch: async () => ({{ ok: false, status: 500, statusText: "Boom" }}),
+  setTimeout,
+  setInterval: () => 1,
+  clearInterval: () => {{}},
+  console,
+}};
+const code = fs.readFileSync({json.dumps(app_js)}, "utf8");
+vm.runInNewContext(`${{code}}
+globalThis.__ready = (async () => {{
+  renderDetail = (detail) => {{ globalThis.__captured = detail; }};
+  state.tab = "main";
+  state.rows.main = [{{ paper_id: "broken", title: "Broken", has_md: true }}];
+  await selectRow("broken");
+  return globalThis.__captured;
+}})();
+`, context);
+context.__ready.then((payload) => console.log(JSON.stringify(payload))).catch((err) => {{
+  console.error(err);
+  process.exit(1);
+}});
+"""
+
+    result = subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
+
+    payload = json.loads(result.stdout)
+    assert payload["title"] == "Detail unavailable"
+    assert "commands" not in payload
+
+
 def test_library_view_app_missing_markdown_status_is_not_clean() -> None:
     from scholaraio.interfaces.cli.gui import _static_dir
 
@@ -754,6 +849,16 @@ def test_pdf_content_disposition_uses_ascii_fallback_and_strips_line_breaks():
     assert "\n" not in disposition
     assert 'filename="paper.pdf"' in disposition
     assert "filename*=UTF-8''%E5%9D%8F__Name_.pdf" in disposition
+
+
+def test_browser_url_uses_loopback_for_wildcard_bind_hosts():
+    from scholaraio.interfaces.cli.gui import _browser_url
+
+    assert _browser_url("0.0.0.0", 8765) == "http://127.0.0.1:8765"
+    assert _browser_url("::", 8765) == "http://127.0.0.1:8765"
+    assert _browser_url("", 8765) == "http://127.0.0.1:8765"
+    assert _browser_url("127.0.0.1", 8765) == "http://127.0.0.1:8765"
+    assert _browser_url("::1", 8765) == "http://[::1]:8765"
 
 
 def test_library_view_server_head_pdf_does_not_read_body(tmp_path):
