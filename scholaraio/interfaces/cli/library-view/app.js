@@ -9,6 +9,7 @@ const state = {
   sortKey: "year",
   sortDir: "desc",
   pdf: null,
+  pdfFullscreen: false,
   filters: {
     search: "",
     type: "",
@@ -25,14 +26,17 @@ const els = {
   updatedAt: document.getElementById("updated-at"),
   sourceTitle: document.getElementById("source-title"),
   sourceRoot: document.getElementById("source-root"),
+  sourceCopyButton: document.getElementById("source-copy-button"),
   metricTotal: document.getElementById("metric-total"),
   metricErrors: document.getElementById("metric-errors"),
   metricWarnings: document.getElementById("metric-warnings"),
   tableCount: document.getElementById("table-count"),
   recordsToolbarTitle: document.getElementById("records-toolbar-title"),
+  tablePanel: document.getElementById("table-panel"),
   recordsView: document.getElementById("records-view"),
   pdfToolbarTitle: document.getElementById("pdf-toolbar-title"),
   pdfBackButton: document.getElementById("pdf-back-button"),
+  pdfFullscreenButton: document.getElementById("pdf-fullscreen-button"),
   pdfTitle: document.getElementById("pdf-title"),
   pdfViewer: document.getElementById("pdf-viewer"),
   pdfFrame: document.getElementById("pdf-frame"),
@@ -46,7 +50,6 @@ const els = {
   filterMissingMd: document.getElementById("filter-missing-md"),
   refreshButton: document.getElementById("refresh-button"),
   detailTitle: document.getElementById("detail-title"),
-  detailSubtitle: document.getElementById("detail-subtitle"),
   metadataGrid: document.getElementById("metadata-grid"),
   issueList: document.getElementById("issue-list"),
   detailAbstract: document.getElementById("detail-abstract"),
@@ -157,8 +160,12 @@ function renderFilters() {
 
 function renderMetrics() {
   const payload = activePayload();
+  const root = payload?.root || "";
   els.sourceTitle.textContent = state.tab === "main" ? "Main Papers" : "Proceedings";
-  els.sourceRoot.textContent = payload?.root || "--";
+  els.sourceRoot.textContent = root || "--";
+  els.sourceRoot.title = root;
+  els.sourceCopyButton.disabled = !root;
+  if (els.sourceCopyButton.textContent !== "Copied") els.sourceCopyButton.textContent = "Copy";
   els.metricTotal.textContent = String(payload?.total ?? "--");
   const totals = payload?.issue_totals || {};
   els.metricErrors.textContent = String(totals.error ?? 0);
@@ -198,10 +205,7 @@ function renderTable() {
     const title = document.createElement("div");
     title.className = "paper-title";
     title.textContent = text(row.title);
-    const id = document.createElement("div");
-    id.className = "paper-id";
-    id.textContent = row.dir_name || row.paper_id;
-    titleWrap.append(title, id);
+    titleWrap.appendChild(title);
     titleCell.appendChild(titleWrap);
     tr.appendChild(titleCell);
 
@@ -240,7 +244,6 @@ function renderTable() {
 function renderMetadata(detail) {
   els.metadataGrid.textContent = "";
   const pairs = [
-    ["ID", detail.paper_id],
     ["Directory", detail.dir_name],
     ["Authors", detail.authors_text],
     ["Year", detail.year],
@@ -307,7 +310,6 @@ function renderToc(detail) {
 function renderDetail(detail) {
   if (!detail) {
     els.detailTitle.textContent = "Select a record";
-    els.detailSubtitle.textContent = "--";
     els.metadataGrid.textContent = "";
     els.issueList.textContent = "";
     els.detailAbstract.textContent = "--";
@@ -316,7 +318,6 @@ function renderDetail(detail) {
     return;
   }
   els.detailTitle.textContent = text(detail.title);
-  els.detailSubtitle.textContent = detail.dir_name || detail.paper_id;
   renderMetadata(detail);
   renderIssues(detail);
   els.detailAbstract.textContent = text(detail.abstract);
@@ -324,7 +325,25 @@ function renderDetail(detail) {
   renderToc(detail);
 }
 
+async function copySourceRoot() {
+  const root = activePayload()?.root || "";
+  if (!root) return;
+  try {
+    await navigator.clipboard.writeText(root);
+    els.sourceCopyButton.textContent = "Copied";
+  } catch (_err) {
+    els.sourceCopyButton.textContent = "Copy failed";
+  }
+}
+
+function setPdfFullscreen(enabled) {
+  state.pdfFullscreen = Boolean(enabled);
+  els.tablePanel.classList.toggle("is-pdf-fullscreen", state.pdfFullscreen);
+  els.pdfFullscreenButton.textContent = state.pdfFullscreen ? "Exit fullscreen" : "Fullscreen";
+}
+
 function showRecords() {
+  setPdfFullscreen(false);
   state.pdf = null;
   els.pdfFrame.removeAttribute("src");
   els.recordsToolbarTitle.hidden = false;
@@ -335,6 +354,7 @@ function showRecords() {
 }
 
 function openPdf(row) {
+  setPdfFullscreen(false);
   state.pdf = { url: row.pdf_url, title: row.title || row.dir_name || row.paper_id };
   els.pdfTitle.textContent = text(state.pdf.title);
   els.pdfFrame.src = row.pdf_url;
@@ -432,8 +452,13 @@ function bindEvents() {
     state.filters.missingMd = els.filterMissingMd.checked;
     renderTable();
   });
+  els.sourceCopyButton.addEventListener("click", copySourceRoot);
   els.refreshButton.addEventListener("click", () => refreshActive({ keepSelection: true }));
   els.pdfBackButton.addEventListener("click", showRecords);
+  els.pdfFullscreenButton.addEventListener("click", () => setPdfFullscreen(!state.pdfFullscreen));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.pdfFullscreen) setPdfFullscreen(false);
+  });
   document.querySelectorAll("th[data-sort]").forEach((th) => {
     th.addEventListener("click", () => {
       const key = th.dataset.sort;

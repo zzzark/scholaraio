@@ -95,6 +95,26 @@ def test_library_view_server_serves_static_console_shell(tmp_path):
         server.server_close()
 
 
+def test_library_view_shell_uses_compact_records_and_pdf_controls(tmp_path):
+    from scholaraio.interfaces.cli.gui import create_library_view_server
+
+    cfg = _build_config({}, tmp_path)
+    server = create_library_view_server(cfg, host="127.0.0.1", port=0)
+    host, port = server.server_address
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"http://{host}:{port}/", timeout=3) as response:
+            html = response.read().decode("utf-8")
+        assert 'id="source-copy-button"' in html
+        assert 'id="pdf-fullscreen-button"' in html
+        assert 'id="detail-subtitle"' not in html
+        assert html.index('id="toc-list"') < html.index('id="issue-list"')
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_library_view_static_assets_live_inside_package() -> None:
     from scholaraio.interfaces.cli.gui import _static_dir
 
@@ -114,6 +134,116 @@ def test_library_view_css_preserves_hidden_attribute_for_pdf_toolbar() -> None:
 
     assert "[hidden]" in css
     assert "display: none !important" in css
+
+
+def test_library_view_app_source_copy_fullscreen_and_compact_rows() -> None:
+    from scholaraio.interfaces.cli.gui import _static_dir
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is required for app.js behavior regression")
+    app_js = (_static_dir() / "app.js").as_posix()
+    script = f"""
+const fs = require("fs");
+const vm = require("vm");
+
+function element(id) {{
+  const classes = new Set();
+  return {{
+    id,
+    dataset: {{}},
+    value: "",
+    checked: false,
+    disabled: false,
+    hidden: false,
+    textContent: "",
+    className: "",
+    children: [],
+    classList: {{
+      add(name) {{ classes.add(name); }},
+      remove(name) {{ classes.delete(name); }},
+      contains(name) {{ return classes.has(name); }},
+      toggle(name, force) {{
+        const enabled = force === undefined ? !classes.has(name) : Boolean(force);
+        if (enabled) classes.add(name);
+        else classes.delete(name);
+        return enabled;
+      }},
+    }},
+    appendChild(child) {{ this.children.push(child); return child; }},
+    append(...items) {{ this.children.push(...items); }},
+    removeAttribute(name) {{ delete this[name]; }},
+    addEventListener() {{}},
+  }};
+}}
+
+const elements = new Map();
+const tabs = ["main", "proceedings"].map((tab) => {{
+  const el = element(`tab-${{tab}}`);
+  el.dataset.tab = tab;
+  return el;
+}});
+const document = {{
+  body: element("body"),
+  getElementById(id) {{
+    if (!elements.has(id)) elements.set(id, element(id));
+    return elements.get(id);
+  }},
+  createElement(tag) {{
+    return element(tag);
+  }},
+  querySelectorAll(selector) {{
+    if (selector === ".tab") return tabs;
+    return [];
+  }},
+  addEventListener() {{}},
+}};
+const context = {{
+  document,
+  navigator: {{ clipboard: {{ writeText: async (value) => {{ context.__copied = value; }} }} }},
+  fetch: async () => ({{ ok: true, json: async () => ({{ papers: [], total: 0 }}) }}),
+  setInterval: () => 1,
+  clearInterval: () => {{}},
+  console,
+}};
+const code = fs.readFileSync({json.dumps(app_js)}, "utf8");
+vm.runInNewContext(`${{code}}
+(async () => {{
+  state.payload.main = {{ root: "/tmp/scholaraio/data/libraries/papers", total: 1, issue_totals: {{}} }};
+  renderMetrics();
+  await copySourceRoot();
+  openPdf({{ pdf_url: "/api/main/pdf?id=paper-1", title: "Paper title" }});
+  setPdfFullscreen(true);
+  const fullscreenOn = els.tablePanel.classList.contains("is-pdf-fullscreen");
+  showRecords();
+  const row = {{ paper_id: "paper-1", dir_name: "Doe-2026-Paper", title: "Paper title", has_md: true }};
+  state.rows.main = [row];
+  renderTable();
+  globalThis.__result = {{
+    copied: globalThis.__copied,
+    sourceCopyLabel: els.sourceCopyButton.textContent,
+    fullscreenOn,
+    fullscreenAfterBack: els.tablePanel.classList.contains("is-pdf-fullscreen"),
+    firstTitleChildren: els.tableBody.children[0].children[0].children[0].children.length,
+    metadataLabels: (() => {{
+      renderMetadata({{ paper_id: "paper-1", dir_name: "Doe-2026-Paper", title: "Paper title" }});
+      return els.metadataGrid.children.filter((child, index) => index % 2 === 0).map((child) => child.textContent);
+    }})(),
+  }};
+}})();
+`, context);
+setImmediate(() => console.log(JSON.stringify(context.__result)));
+"""
+
+    result = subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
+
+    payload = json.loads(result.stdout)
+    assert payload["copied"] == "/tmp/scholaraio/data/libraries/papers"
+    assert payload["sourceCopyLabel"] == "Copied"
+    assert payload["fullscreenOn"] is True
+    assert payload["fullscreenAfterBack"] is False
+    assert payload["firstTitleChildren"] == 1
+    assert "ID" not in payload["metadataLabels"]
 
 
 def test_library_view_tab_switch_resets_stale_type_filter() -> None:
@@ -162,6 +292,7 @@ const document = {{
     if (selector === ".tab") return tabs;
     return [];
   }},
+  addEventListener() {{}},
 }};
 const context = {{
   document,

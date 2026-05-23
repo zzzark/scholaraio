@@ -32,7 +32,10 @@
           <div class="monitor-card-header">
             <div class="monitor-kicker">Source</div>
             <div class="monitor-title" id="source-title">Main Papers</div>
-            <div class="monitor-subtitle" id="source-root">--</div>
+            <div class="source-root-row">
+              <div class="monitor-subtitle" id="source-root">--</div>
+              <button class="soft-button compact-button" id="source-copy-button" type="button">Copy</button>
+            </div>
           </div>
           <div class="metric-list">
             <div class="metric-row">
@@ -76,7 +79,7 @@
         </section>
       </aside>
 
-      <section class="table-panel">
+      <section class="table-panel" id="table-panel">
         <div class="table-toolbar">
           <div id="records-toolbar-title">
             <div class="monitor-kicker">Records</div>
@@ -84,6 +87,7 @@
           </div>
           <div class="pdf-toolbar-title" id="pdf-toolbar-title" hidden>
             <button class="soft-button" id="pdf-back-button" type="button">Back to records</button>
+            <button class="soft-button" id="pdf-fullscreen-button" type="button">Fullscreen</button>
             <div>
               <div class="monitor-kicker">PDF</div>
               <div class="table-count" id="pdf-title">--</div>
@@ -116,17 +120,11 @@
           <div class="monitor-card-header">
             <div class="monitor-kicker">Inspector</div>
             <div class="monitor-title" id="detail-title">Select a record</div>
-            <div class="monitor-subtitle" id="detail-subtitle">--</div>
           </div>
 
           <div class="detail-section">
             <div class="section-title">Metadata</div>
             <dl class="metadata-grid" id="metadata-grid"></dl>
-          </div>
-
-          <div class="detail-section">
-            <div class="section-title">Quality</div>
-            <div class="issue-list" id="issue-list"></div>
           </div>
 
           <details class="detail-section" open>
@@ -143,6 +141,11 @@
             <summary class="section-title">TOC</summary>
             <div class="toc-list" id="toc-list"></div>
           </details>
+
+          <div class="detail-section">
+            <div class="section-title">Quality</div>
+            <div class="issue-list" id="issue-list"></div>
+          </div>
 
         </section>
       </aside>

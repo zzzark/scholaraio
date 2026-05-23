@@ -159,9 +159,28 @@ h1 {
   font-size: 12px;
 }
 
+.compact-button {
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.soft-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+  transform: none;
+}
+
 .soft-button:hover {
   color: var(--text);
   transform: translateY(-1px);
+}
+
+.soft-button:disabled:hover {
+  color: var(--muted);
+  transform: none;
 }
 
 .workspace {
@@ -239,6 +258,17 @@ h1 {
   font-size: 12px;
   line-height: 1.45;
   white-space: nowrap;
+}
+
+.source-root-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.source-root-row .monitor-subtitle {
+  flex: 1;
 }
 
 .metric-list {
@@ -329,6 +359,13 @@ h1 {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
+}
+
+.table-panel.is-pdf-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  border-radius: 0;
 }
 
 .table-toolbar {
@@ -439,14 +476,6 @@ tbody tr.is-selected {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 650;
-}
-
-.paper-id {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 .pill-row {
@@ -621,6 +650,10 @@ summary.section-title {
   background: #fff;
 }
 
+.table-panel.is-pdf-fullscreen .pdf-viewer iframe {
+  height: 100%;
+}
+
 @media (max-width: 1180px) {
   .workspace {
     grid-template-columns: 230px minmax(360px, 1fr) 320px;
@@ -663,5 +696,10 @@ summary.section-title {
 
   .pdf-viewer iframe {
     min-height: 70dvh;
+  }
+
+  .table-panel.is-pdf-fullscreen {
+    inset: 0;
+    border-radius: 0;
   }
 }
