@@ -89,6 +89,7 @@ def test_library_view_server_serves_static_console_shell(tmp_path):
         assert "pdf-frame" in html
         assert "Back to records" in html
         assert ">CLI<" not in html
+        assert "tex-chtml.js" in html
         assert "app.js" in html
     finally:
         server.shutdown()
@@ -444,6 +445,88 @@ console.log(JSON.stringify(context.__result));
     result = subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
 
     assert json.loads(result.stdout) == ["No MD"]
+
+
+def test_library_view_app_renders_markdown_and_math_in_detail_text() -> None:
+    from scholaraio.interfaces.cli.gui import _static_dir
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is required for app.js behavior regression")
+    app_js = (_static_dir() / "app.js").as_posix()
+    abstract = json.dumps("Flow **energy** is $E_i = mc^2$. <script>alert(1)</script>")
+    conclusion = json.dumps(r"Conclusion with $$\alpha + \beta$$.")
+    script = f"""
+const fs = require("fs");
+const vm = require("vm");
+
+function element(id) {{
+  return {{
+    id,
+    dataset: {{}},
+    value: "",
+    checked: false,
+    hidden: false,
+    textContent: "",
+    innerHTML: "",
+    className: "",
+    classList: {{ toggle() {{}}, add() {{}}, remove() {{}} }},
+    children: [],
+    appendChild(child) {{ this.children.push(child); return child; }},
+    append(...items) {{ this.children.push(...items); }},
+    removeAttribute() {{}},
+    addEventListener() {{}},
+  }};
+}}
+const elements = new Map();
+const document = {{
+  getElementById(id) {{
+    if (!elements.has(id)) elements.set(id, element(id));
+    return elements.get(id);
+  }},
+  createElement(tag) {{
+    return element(tag);
+  }},
+  querySelectorAll() {{
+    return [];
+  }},
+  addEventListener() {{}},
+}};
+const context = {{
+  document,
+  MathJax: {{ typesetPromise: async (nodes) => {{ context.__mathNodes = nodes.map((node) => node.id); }} }},
+  __abstract: {abstract},
+  __conclusion: {conclusion},
+  navigator: {{ clipboard: {{ writeText: async () => {{}} }} }},
+  fetch: async () => ({{ ok: true, json: async () => ({{ papers: [], total: 0, issue_totals: {{}} }}) }}),
+  setInterval: () => 1,
+  clearInterval: () => {{}},
+  console,
+}};
+const code = fs.readFileSync({json.dumps(app_js)}, "utf8");
+vm.runInNewContext(`${{code}}
+renderDetail({{
+  title: "Formula paper",
+  abstract: globalThis.__abstract,
+  l3_conclusion: globalThis.__conclusion
+}});
+globalThis.__result = {{
+  abstractHtml: els.detailAbstract.innerHTML,
+  conclusionHtml: els.detailConclusion.innerHTML,
+  mathNodes: globalThis.__mathNodes || [],
+}};
+`, context);
+setImmediate(() => console.log(JSON.stringify(context.__result)));
+"""
+
+    result = subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
+
+    payload = json.loads(result.stdout)
+    assert "<strong>energy</strong>" in payload["abstractHtml"]
+    assert "$E_i = mc^2$" in payload["abstractHtml"]
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in payload["abstractHtml"]
+    assert "$$\\alpha + \\beta$$" in payload["conclusionHtml"]
+    assert payload["mathNodes"] == ["detail-abstract", "detail-conclusion"]
 
 
 def test_library_view_tab_switch_resets_stale_type_filter() -> None:

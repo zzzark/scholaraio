@@ -64,6 +64,140 @@ function text(value, fallback = "--") {
   return string || fallback;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function findUnescaped(input, token, start) {
+  let index = start;
+  while (index < input.length) {
+    index = input.indexOf(token, index);
+    if (index === -1) return -1;
+    let backslashes = 0;
+    for (let i = index - 1; i >= 0 && input[i] === "\\"; i -= 1) backslashes += 1;
+    if (backslashes % 2 === 0) return index;
+    index += token.length;
+  }
+  return -1;
+}
+
+function splitMathSegments(input) {
+  const segments = [];
+  let start = 0;
+  let i = 0;
+  while (i < input.length) {
+    let end = -1;
+    let tokenLength = 0;
+    if (input.startsWith("$$", i)) {
+      end = findUnescaped(input, "$$", i + 2);
+      tokenLength = 2;
+    } else if (input.startsWith("\\[", i)) {
+      end = findUnescaped(input, "\\]", i + 2);
+      tokenLength = 2;
+    } else if (input.startsWith("\\(", i)) {
+      end = findUnescaped(input, "\\)", i + 2);
+      tokenLength = 2;
+    } else if (input[i] === "$" && input[i + 1] !== "$") {
+      end = findUnescaped(input, "$", i + 1);
+      tokenLength = 1;
+    }
+    if (end === -1) {
+      i += 1;
+      continue;
+    }
+    const close = end + tokenLength;
+    if (i > start) segments.push({ kind: "text", value: input.slice(start, i) });
+    segments.push({ kind: "math", value: input.slice(i, close) });
+    i = close;
+    start = close;
+  }
+  if (start < input.length) segments.push({ kind: "text", value: input.slice(start) });
+  return segments;
+}
+
+function renderInlineText(value) {
+  let html = escapeHtml(value);
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\b_([^_\n]+)_\b/g, "<em>$1</em>");
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|mailto:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  return html;
+}
+
+function renderInlineMarkdown(value) {
+  return splitMathSegments(value)
+    .map((segment) => {
+      if (segment.kind === "math") return escapeHtml(segment.value);
+      return renderInlineText(segment.value);
+    })
+    .join("");
+}
+
+function markdownToHtml(value) {
+  const lines = String(value ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  let paragraph = [];
+  let list = [];
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push(`<p>${renderInlineMarkdown(paragraph.join("\n")).replace(/\n/g, "<br>")}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!list.length) return;
+    blocks.push(`<ul>${list.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`);
+    list = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
+    if (bullet) {
+      flushParagraph();
+      list.push(bullet[1]);
+      continue;
+    }
+    flushList();
+    paragraph.push(line);
+  }
+  flushParagraph();
+  flushList();
+  return blocks.join("");
+}
+
+function typesetMath(...nodes) {
+  const mathJax = globalThis.MathJax;
+  if (!mathJax) return;
+  const render = () => {
+    mathJax.typesetClear?.(nodes);
+    return mathJax.typesetPromise?.(nodes)?.catch(() => {});
+  };
+  if (typeof mathJax.typesetPromise === "function") {
+    render();
+  } else {
+    mathJax.startup?.promise?.then(render).catch(() => {});
+  }
+}
+
+function renderMarkdown(container, value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    container.textContent = "--";
+    return;
+  }
+  container.innerHTML = markdownToHtml(raw);
+}
+
 function formatDate(iso) {
   if (!iso) return "--";
   const d = new Date(iso);
@@ -322,8 +456,9 @@ function renderDetail(detail) {
   els.detailTitle.textContent = text(detail.title);
   renderMetadata(detail);
   renderIssues(detail);
-  els.detailAbstract.textContent = text(detail.abstract);
-  els.detailConclusion.textContent = text(detail.l3_conclusion);
+  renderMarkdown(els.detailAbstract, detail.abstract);
+  renderMarkdown(els.detailConclusion, detail.l3_conclusion);
+  typesetMath(els.detailAbstract, els.detailConclusion);
   renderToc(detail);
 }
 
@@ -452,6 +587,9 @@ function switchTab(tab) {
 }
 
 function bindEvents() {
+  globalThis.addEventListener?.("scholaraio-mathjax-ready", () => {
+    typesetMath(els.detailAbstract, els.detailConclusion);
+  });
   document.querySelectorAll(".tab").forEach((button) => {
     button.addEventListener("click", () => switchTab(button.dataset.tab));
   });

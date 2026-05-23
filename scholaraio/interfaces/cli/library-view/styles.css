@@ -612,7 +612,55 @@ summary.section-title {
   color: var(--text);
   font-size: 13px;
   line-height: 1.6;
-  white-space: pre-wrap;
+}
+
+.markdown-body {
+  overflow-wrap: anywhere;
+}
+
+.markdown-body p,
+.markdown-body ul {
+  margin: 0 0 9px;
+}
+
+.markdown-body p:last-child,
+.markdown-body ul:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body ul {
+  padding-left: 18px;
+}
+
+.markdown-body li + li {
+  margin-top: 4px;
+}
+
+.markdown-body code {
+  padding: 1px 4px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.markdown-body mjx-container {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-body mjx-container[display="true"] {
+  padding-bottom: 2px;
 }
 
 .toc-list {

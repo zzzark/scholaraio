@@ -129,12 +129,12 @@
 
           <details class="detail-section" open>
             <summary class="section-title">Abstract</summary>
-            <p class="detail-text" id="detail-abstract">--</p>
+            <div class="detail-text markdown-body" id="detail-abstract">--</div>
           </details>
 
           <details class="detail-section">
             <summary class="section-title">Conclusion</summary>
-            <p class="detail-text" id="detail-conclusion">--</p>
+            <div class="detail-text markdown-body" id="detail-conclusion">--</div>
           </details>
 
           <details class="detail-section">
@@ -151,6 +151,26 @@
       </aside>
     </section>
   </main>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [["$", "$"], ["\\(", "\\)"]],
+        displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"]
+      },
+      startup: {
+        typeset: false,
+        ready: () => {
+          MathJax.startup.defaultReady();
+          window.dispatchEvent(new Event("scholaraio-mathjax-ready"));
+        }
+      }
+    };
+  </script>
   <script type="module" src="/app.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </body>
 </html>
