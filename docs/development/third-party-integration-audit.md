@@ -14,6 +14,7 @@ Integrations are evaluated at the workflow boundary, checking CLI/skill entrypoi
 | **GUILessBingSearch** | Web / Agent | **not-yet-reviewed** | N/A | Excluded from current triage phase. |
 | **MinerU Local API** | Parsing | **not-yet-reviewed** | N/A | Excluded from current triage phase. |
 | **MinerU Cloud CLI** | Parsing | **good** | `test_mineru.py` | Handles `mineru-open-api` subprocess calls; enforces filename constraints safely. |
+| **Paper2Any MCP Sidecar** | Parsing/MCP | **not-yet-reviewed** | N/A | Excluded from current triage phase. |
 | **Docling Fallback** | Parsing | **not-yet-reviewed** | N/A | Excluded from current triage phase. |
 | **PyMuPDF Fallback** | Parsing | **good** | `test_pdf_fallback.py` | Robust extraction fallback when default parser fails. |
 | **arXiv Search (Atom API)** | Discovery | **good** | `test_arxiv_source.py` | Atom XML parser is stable; query filters match client expectations. |
