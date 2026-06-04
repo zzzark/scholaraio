@@ -821,6 +821,20 @@ class TestWebtoolsEnhancedExtract:
         )
         assert _clean_table_code_fences(normal_table) == normal_table
 
+        # Test standalone code block between tables should not be changed
+        standalone_between_tables = (
+            "| A | B |\n"
+            "| --- | --- |\n"
+            "| one | two |\n\n"
+            "```python\n"
+            "print(1)\n"
+            "```\n\n"
+            "| C | D |\n"
+            "| --- | --- |\n"
+            "| three | four |\n"
+        )
+        assert _clean_table_code_fences(standalone_between_tables) == standalone_between_tables
+
     def test_extract_web_applies_cleanup_http(self, monkeypatch):
         # Verify that HTTP path runs the clean helper
         def fake_urlopen(req, timeout=0):

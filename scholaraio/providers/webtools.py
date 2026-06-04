@@ -590,6 +590,10 @@ def _clean_table_code_fences(text: str) -> str:
     )
 
     def replace_match(match):
+        full_match = match.group(0)
+        if re.search(r"\n\s*\n", full_match):
+            return full_match
+
         before = match.group(1).replace("\n", " ").strip()
         code_content = match.group(2).replace("\n", " ").strip()
         after = match.group(3).replace("\n", " ").strip()
