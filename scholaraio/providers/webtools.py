@@ -572,6 +572,53 @@ def _extract_web_mcp(url: str, *, cfg: Config | None, timeout: float) -> dict:
     }
 
 
+def _clean_single_row(row_text: str) -> str:
+    cells = row_text.split("|")
+    cleaned_cells = []
+
+    for i, cell in enumerate(cells):
+        if i == 0 and not cell.strip():
+            cleaned_cells.append(cell)
+            continue
+        if i == len(cells) - 1 and not cell.strip() and row_text.endswith("|"):
+            cleaned_cells.append(cell)
+            continue
+
+        if "```" in cell:
+            fence_count = cell.count("```")
+            cell_to_clean = cell + "\n```" if fence_count % 2 != 0 else cell
+            parts = cell_to_clean.split("```")
+            cleaned_parts = []
+            for j, part in enumerate(parts):
+                if j % 2 == 0:
+                    cleaned_parts.append(part.replace("\n", " "))
+                else:
+                    block = part
+                    if block.startswith("\n"):
+                        block = block[1:]
+                    else:
+                        block_lines = block.split("\n", 1)
+                        if len(block_lines) > 1:
+                            first_line = block_lines[0].strip()
+                            if re.match(r"^[a-zA-Z0-9_-]+$", first_line):
+                                block = block_lines[1]
+                    block_clean = block.replace("\n", " ").strip()
+                    if block_clean:
+                        cleaned_parts.append(f"`{block_clean}`")
+                    else:
+                        cleaned_parts.append("")
+            cleaned_cell = "".join(cleaned_parts)
+            cleaned_cell = " " + cleaned_cell.strip() + " "
+            cleaned_cells.append(cleaned_cell)
+        else:
+            cleaned_cells.append(cell.replace("\n", " "))
+
+    res = "|".join(cleaned_cells)
+    if not res.endswith("|"):
+        res += "|"
+    return res
+
+
 def _clean_table_code_fences(text: str) -> str:
     """Sanitize Markdown table cells that contain block-level code blocks/fences.
 
@@ -583,35 +630,77 @@ def _clean_table_code_fences(text: str) -> str:
     if not text:
         return ""
 
-    # Pattern to match a code block inside a table cell (bounded by pipes)
-    pattern = re.compile(
-        r"\|([^|]*?)```(?:[a-zA-Z0-9_-]*)\n(.*?)\n\s*```([^|]*?)\|",
-        re.DOTALL
-    )
+    lines = text.splitlines()
+    cleaned_lines = []
+    current_row_lines = []
+    in_multiline_row = False
+    in_code_block = False
 
-    def replace_match(match):
-        full_match = match.group(0)
-        if re.search(r"\n\s*\n", full_match):
-            return full_match
+    def flush_current_row():
+        nonlocal in_multiline_row, current_row_lines, in_code_block
+        if current_row_lines:
+            row_text = "\n".join(current_row_lines)
+            cleaned_row = _clean_single_row(row_text)
+            cleaned_lines.append(cleaned_row)
+            current_row_lines = []
+        in_multiline_row = False
+        in_code_block = False
 
-        before = match.group(1).replace("\n", " ").strip()
-        code_content = match.group(2).replace("\n", " ").strip()
-        after = match.group(3).replace("\n", " ").strip()
-        
-        # Format the code content as inline code
-        inline_code = f"`{code_content}`" if code_content else ""
-        
-        # Assemble the cleaned cell components
-        parts = [p for p in (before, inline_code, after) if p]
-        cleaned_cell = " " + " ".join(parts) + " "
-        return f"|{cleaned_cell}|"
+    for line in lines:
+        stripped = line.strip()
 
-    cleaned = text
-    prev = ""
-    while cleaned != prev:
-        prev = cleaned
-        cleaned = pattern.sub(replace_match, cleaned)
-    return cleaned
+        if in_multiline_row:
+            num_fences = stripped.count("```")
+            if stripped.startswith("|") and (stripped.count("|") >= 2 or "```" in stripped):
+                flush_current_row()
+                # fall through to process as a new row start below
+            else:
+                if num_fences % 2 != 0:
+                    in_code_block = not in_code_block
+
+                if not in_code_block:
+                    if stripped.endswith("|"):
+                        current_row_lines.append(line)
+                        flush_current_row()
+                        continue
+                    elif not stripped:
+                        flush_current_row()
+                        cleaned_lines.append(line)
+                        continue
+                    elif stripped.startswith("```"):
+                        flush_current_row()
+                        # fall through to process as normal
+
+                if in_multiline_row:
+                    current_row_lines.append(line)
+                    continue
+
+        if stripped.startswith("|") and (stripped.count("|") >= 2 or "```" in stripped):
+            if "```" in stripped:
+                num_fences = stripped.count("```")
+                in_code = num_fences % 2 != 0
+                if not in_code and stripped.endswith("|"):
+                    cleaned_lines.append(_clean_single_row(line))
+                else:
+                    in_multiline_row = True
+                    in_code_block = in_code
+                    current_row_lines = [line]
+            else:
+                if stripped.endswith("|"):
+                    cleaned_lines.append(line)
+                else:
+                    in_multiline_row = True
+                    in_code_block = False
+                    current_row_lines = [line]
+        else:
+            cleaned_lines.append(line)
+
+    flush_current_row()
+
+    result = "\n".join(cleaned_lines)
+    if text.endswith("\n") and not result.endswith("\n"):
+        result += "\n"
+    return result
 
 
 def extract_web(
