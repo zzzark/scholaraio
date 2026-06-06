@@ -824,6 +824,11 @@ class TestWebtoolsEnhancedExtract:
         )
         assert _clean_table_code_fences(standalone_between_tables) == standalone_between_tables
 
+        adjacent_standalone_code = (
+            "| A | B |\n| one | two |\n```python\nprint(1)\n```\n| next paragraph starts with pipe |\n"
+        )
+        assert _clean_table_code_fences(adjacent_standalone_code) == adjacent_standalone_code
+
     def test_extract_web_applies_cleanup_http(self, monkeypatch):
         # Verify that HTTP path runs the clean helper
         def fake_urlopen(req, timeout=0):

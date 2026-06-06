@@ -631,8 +631,8 @@ def _clean_table_code_fences(text: str) -> str:
         return ""
 
     lines = text.splitlines()
-    cleaned_lines = []
-    current_row_lines = []
+    cleaned_lines: list[str] = []
+    current_row_lines: list[str] = []
     in_multiline_row = False
     in_code_block = False
 
