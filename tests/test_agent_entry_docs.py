@@ -22,17 +22,53 @@ def test_entry_docs_stay_light_and_point_to_deep_reference() -> None:
     agents_cn = _read("AGENTS_CN.md")
 
     assert "intentionally short" in agents
+    assert "docs/DESIGN.md" in agents
     assert "docs/guide/agent-reference.md" in agents
     assert ".claude/skills/" in agents
     assert _line_count("AGENTS.md") < 180
 
     assert "intentionally stays light" in claude
+    assert "docs/DESIGN.md" in claude
     assert "@AGENTS.md" in claude
     assert _line_count("CLAUDE.md") < 20
 
     assert "有意保持精简" in agents_cn
+    assert "docs/DESIGN.md" in agents_cn
     assert "docs/guide/agent-reference.md" in agents_cn
     assert _line_count("AGENTS_CN.md") < 180
+
+
+def test_repository_knowledge_system_is_indexed_for_agents() -> None:
+    required_docs = (
+        "docs/DESIGN.md",
+        "docs/PLANS.md",
+        "docs/QUALITY_SCORE.md",
+        "docs/design-docs/index.md",
+        "docs/product-specs/index.md",
+        "docs/exec-plans/index.md",
+        "docs/exec-plans/tech-debt-tracker.md",
+        "docs/references/index.md",
+        "docs/generated/index.md",
+        "docs/validation/index.md",
+    )
+    for rel_path in required_docs:
+        assert (ROOT / rel_path).exists(), f"{rel_path} should exist"
+
+    design = _read("docs/DESIGN.md")
+    for directory in (
+        "docs/design-docs/",
+        "docs/product-specs/",
+        "docs/exec-plans/",
+        "docs/references/",
+        "docs/generated/",
+        "docs/validation/",
+    ):
+        assert directory in design
+
+    mkdocs = _read("mkdocs.yml")
+    assert "Repository Knowledge:" in mkdocs
+    assert "Knowledge Map: DESIGN.md" in mkdocs
+    assert "Execution Plans: exec-plans/index.md" in mkdocs
 
 
 def test_wrappers_and_setup_docs_defer_to_shared_entry_and_reference() -> None:
@@ -56,8 +92,11 @@ def test_agent_reference_doc_exists_and_links_core_surfaces() -> None:
     content = _read("docs/guide/agent-reference.md")
 
     assert ".claude/skills/" in content
-    assert "docs/development/scholaraio-upgrade-plan.md" in content
-    assert "docs/development/upgrade-validation-matrix.md" in content
+    assert "docs/DESIGN.md" in content
+    assert "docs/design-docs/index.md" in content
+    assert "docs/exec-plans/index.md" in content
+    assert "docs/exec-plans/completed/scholaraio-upgrade-plan.md" in content
+    assert "docs/validation/upgrade-validation-matrix.md" in content
     assert "docs/guide/cli-reference.md" in content
     assert "workspace.yaml" in content
     assert "notes.md" in content
