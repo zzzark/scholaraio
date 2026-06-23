@@ -10,6 +10,7 @@ EXPLICIT_SKILLS_DIR = ROOT / "explicit-skills"
 EXPECTED_SKILLS = {
     "scholaraio-search",
     "scholaraio-show",
+    "scholaraio-pdf",
     "scholaraio-paper-guided-reading",
     "scholaraio-ingest",
     "scholaraio-explore",

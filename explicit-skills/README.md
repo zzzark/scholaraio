@@ -10,6 +10,7 @@ Install these wrappers instead when ScholarAIO should activate only after the us
 
 - `scholaraio-search`
 - `scholaraio-show`
+- `scholaraio-pdf`
 - `scholaraio-paper-guided-reading`
 - `scholaraio-ingest`
 - `scholaraio-explore`
